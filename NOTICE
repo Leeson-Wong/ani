@@ -1,0 +1,18 @@
+书影 ani — 第三方资源说明
+
+1. rust/fqapi_core
+   来源:https://github.com/ch6vip/fqapp(GPL-3.0)
+   说明:番茄小说数据源核心,原样复制未作修改,便于跟随上游更新。
+
+2. rust/fqapi_ohos
+   说明:为将 fqapi_core 接入 HarmonyOS 而新写的 NAPI 包装,属 fqapi_core 的衍生作品(GPL-3.0)。
+
+3. 苹果CMS(macCMS v10)接入逻辑
+   参考实现:https://github.com/aooiuu/any-reader 的 packages/rule-utils/src/maccms.ts
+   说明:参考其解析规则用 ArkTS 重写,未复制代码。
+
+4. AnimeGarden(计划中)
+   使用其公开 API https://api.animes.garden,未使用其代码。
+
+5. 所有内容资源(小说/影视)均来自第三方公开接口,本工程不存储、不分发任何内容,
+   仅作个人学习研究用途。

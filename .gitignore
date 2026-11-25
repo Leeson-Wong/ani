@@ -1,0 +1,20 @@
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+# 签名材料与密码密文,不入库(本机另有真实文件;新机器需手动放回)
+/build-profile.json5
+
+# 其他 AI 工具的工作目录
+/.workbuddy
+
+# rust 交叉编译产物
+rust/target

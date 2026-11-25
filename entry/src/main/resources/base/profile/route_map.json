@@ -1,0 +1,49 @@
+{
+  "routerMap": [
+    {
+      "buildFunction": "cmsSourceManageBuilder",
+      "name": "CmsSourceManage",
+      "pageSourceFile": "src/main/ets/pages/cms/CmsSourceManagePage.ets"
+    },
+    {
+      "buildFunction": "videoDetailBuilder",
+      "name": "VideoDetail",
+      "pageSourceFile": "src/main/ets/pages/video/VideoDetailPage.ets"
+    },
+    {
+      "buildFunction": "playerPageBuilder",
+      "name": "Player",
+      "pageSourceFile": "src/main/ets/pages/video/PlayerPage.ets"
+    },
+    {
+      "buildFunction": "historyPageBuilder",
+      "name": "History",
+      "pageSourceFile": "src/main/ets/pages/video/HistoryPage.ets"
+    },
+    {
+      "buildFunction": "mangaDetailBuilder",
+      "name": "MangaDetail",
+      "pageSourceFile": "src/main/ets/pages/manga/MangaDetailPage.ets"
+    },
+    {
+      "buildFunction": "mangaReaderBuilder",
+      "name": "MangaReader",
+      "pageSourceFile": "src/main/ets/pages/manga/MangaReaderPage.ets"
+    },
+    {
+      "buildFunction": "downloadsPageBuilder",
+      "name": "Downloads",
+      "pageSourceFile": "src/main/ets/pages/manga/DownloadsPage.ets"
+    },
+    {
+      "buildFunction": "offlineLibraryBuilder",
+      "name": "Offline",
+      "pageSourceFile": "src/main/ets/pages/offline/OfflineLibraryPage.ets"
+    },
+    {
+      "buildFunction": "livePlayBuilder",
+      "name": "LivePlay",
+      "pageSourceFile": "src/main/ets/pages/live/LivePlayPage.ets"
+    }
+  ]
+}

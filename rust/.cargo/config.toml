@@ -1,0 +1,28 @@
+# aarch64-unknown-linux-ohos 交叉编译配置
+# 工具链来自 DevEco Studio 的 OpenHarmony native SDK
+
+[target.aarch64-unknown-linux-ohos]
+linker = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang.exe"
+ar = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/llvm-ar.exe"
+# rustc 不会给裸 clang 传 --target,必须显式补(与手工链接成功时的参数一致)
+rustflags = [
+  "-C", "link-arg=--target=aarch64-unknown-linux-ohos",
+  "-C", "link-arg=--sysroot=D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/sysroot",
+]
+
+[target.x86_64-unknown-linux-ohos]
+linker = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang.exe"
+ar = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/llvm-ar.exe"
+rustflags = [
+  "-C", "link-arg=--target=x86_64-unknown-linux-ohos",
+  "-C", "link-arg=--sysroot=D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/sysroot",
+]
+
+[env]
+# ring 等 C 代码编译:必须显式指到 ohos clang(带 target 前缀,cc crate 优先读)
+CC_aarch64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang.exe"
+CXX_aarch64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang++.exe"
+AR_aarch64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/llvm-ar.exe"
+CC_x86_64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang.exe"
+CXX_x86_64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/clang++.exe"
+AR_x86_64_unknown_linux_ohos = "D:/devtools/Huawei/DevEco Studio/sdk/default/openharmony/native/llvm/bin/llvm-ar.exe"

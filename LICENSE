@@ -1,0 +1,24 @@
+GPL-3.0
+
+本工程(书影 ani)为个人自用工具,不对外分发。
+
+其中 `rust/fqapi_core` 目录整体复制自 https://github.com/ch6vip/fqapp(GPL-3.0),
+`rust/fqapi_ohos` 为其衍生代码,二者适用 GPL-3.0 许可证(见下)。
+
+其余部分为原创代码;一旦本工程被分发,依 GPL-3.0 传染条款,
+整个工程须以 GPL-3.0 并附带完整源码发布。
+
+----
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.

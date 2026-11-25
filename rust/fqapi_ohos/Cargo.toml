@@ -1,0 +1,16 @@
+[package]
+name = "fqapi_ohos"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Hand-written minimal Node-API wrapper of fqapi_core for HarmonyOS"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# 不用 napi/napi-rs:商用 HarmonyOS NAPI 运行时符号缺失,注册不生效;
+# 手写绑定只依赖 7 个 API 8 起就有的基础符号
+fqapi_core = { path = "../fqapi_core" }
+once_cell = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }

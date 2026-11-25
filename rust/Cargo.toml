@@ -1,0 +1,11 @@
+[workspace]
+members = ["fqapi_core", "fqapi_ohos"]
+resolver = "2"
+
+# 从 fqapi_core 原配置搬移:profile 只在 workspace root 生效
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+# NOTE: panics must unwind — panic=abort 会把整个进程杀掉
