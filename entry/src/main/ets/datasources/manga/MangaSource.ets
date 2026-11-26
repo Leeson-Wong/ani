@@ -25,33 +25,33 @@ export interface MangaSource {
   chapterImages(pathWord: string, chapterUuid: string): Promise<MangaChapterImages>;
 }
 
+/** copymanga 分类筛选:与原 MangaTabPage 内置列表一致(服务端主题列表接口不稳定,固定一份) */
+const COPYMANGA_THEMES: MangaTheme[] = [
+  { label: '全部', value: '' },
+  { label: '恋爱', value: 'aiqing' },
+  { label: '冒险', value: 'maoxian' },
+  { label: '搞笑', value: 'gaoxiao' },
+  { label: '奇幻', value: 'qihuan' },
+  { label: '校园', value: 'xiaoyuan' },
+  { label: '科幻', value: 'kehuan' },
+  { label: '悬疑', value: 'xuanyi' },
+  { label: '治愈', value: 'zhiyu' },
+  { label: '热血', value: 'rexue' },
+  { label: '少女', value: 'shaonv' },
+  { label: '少年', value: 'shaonian' },
+  { label: '百合', value: 'baihe' },
+  { label: '耽美', value: 'danmei' },
+  { label: '职场', value: 'zhichang' },
+  { label: '恐怖', value: 'kongbu' }
+];
+
 /** copymanga(拷贝漫画)实现:薄包装,逐方法委托 MangaClient 静态实现,行为零变化 */
 export class CopymangaSource implements MangaSource {
-  /** 分类筛选:与原 MangaTabPage 内置列表一致(服务端主题列表接口不稳定,固定一份) */
-  static readonly THEMES: MangaTheme[] = [
-    { label: '全部', value: '' },
-    { label: '恋爱', value: 'aiqing' },
-    { label: '冒险', value: 'maoxian' },
-    { label: '搞笑', value: 'gaoxiao' },
-    { label: '奇幻', value: 'qihuan' },
-    { label: '校园', value: 'xiaoyuan' },
-    { label: '科幻', value: 'kehuan' },
-    { label: '悬疑', value: 'xuanyi' },
-    { label: '治愈', value: 'zhiyu' },
-    { label: '热血', value: 'rexue' },
-    { label: '少女', value: 'shaonv' },
-    { label: '少年', value: 'shaonian' },
-    { label: '百合', value: 'baihe' },
-    { label: '耽美', value: 'danmei' },
-    { label: '职场', value: 'zhichang' },
-    { label: '恐怖', value: 'kongbu' }
-  ];
-
   readonly id: string = 'copymanga';
   readonly name: string = '拷贝漫画';
 
   themes(): MangaTheme[] {
-    return CopymangaSource.THEMES;
+    return COPYMANGA_THEMES;
   }
 
   home(): Promise<MangaHome> {
@@ -81,23 +81,33 @@ export class CopymangaSource implements MangaSource {
 
 /**
  * 漫画源注册表:页面一律经 MangaSources.current() 取源,不直接 import 具体客户端。
- * 当前源 id 存 Prefs(mangaSourceId),默认 copymanga;K2 追加 mkzhan 只需在 registry 加一项。
+ * 当前源 id 存 Prefs(mangaSourceId),默认 copymanga;K2 追加 mkzhan 只需在 buildRegistry 加一项。
+ * 注册表惰性构建(首次访问才 new),不依赖类静态字段初始化顺序。
  */
 export class MangaSources {
-  private static readonly registry: MangaSource[] = [new CopymangaSource()];
+  private static registry: MangaSource[] | null = null;
 
-  static list(): MangaSource[] {
+  private static all(): MangaSource[] {
+    if (MangaSources.registry === null) {
+      const list: MangaSource[] = [];
+      list.push(new CopymangaSource()); // K2:此处追加 MkzhanSource
+      MangaSources.registry = list;
+    }
     return MangaSources.registry;
   }
 
+  static list(): MangaSource[] {
+    return MangaSources.all();
+  }
+
   static byId(id: string): MangaSource | undefined {
-    return MangaSources.registry.find((s: MangaSource) => s.id === id);
+    return MangaSources.all().find((s: MangaSource) => s.id === id);
   }
 
   /** 当前源:Prefs 记录的 id;记录值已不在注册表(如源被移除)时回退第一个 */
   static current(): MangaSource {
     const id = Prefs.getMangaSourceId();
     const hit = MangaSources.byId(id);
-    return hit !== undefined ? hit : MangaSources.registry[0];
+    return hit !== undefined ? hit : MangaSources.all()[0];
   }
 }

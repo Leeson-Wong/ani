@@ -3,6 +3,7 @@ import { MangaSource, MangaSources } from '../../datasources/manga/MangaSource';
 import { DatabaseHelper } from '../../db/DatabaseHelper';
 import { Prefs } from '../../db/Prefs';
 import { Nav } from '../../common/Nav';
+import { Log } from '../../common/Logger';
 import { OfflineBanner } from '../../common/OfflineBanner';
 import { MangaDetailNavParam } from '../../common/NavParams';
 import { MangaBrief, MangaTheme } from '../../models/manga/MangaModels';
@@ -36,7 +37,7 @@ export struct MangaTabPage {
   @Local searched: boolean = false;
   @Local searchResults: MangaBrief[] = [];
   @Local sourceId: string = 'copymanga'; // 当前源(菜单勾选与展示)
-  @Local themes: MangaTheme[] = []; // 当前源的分类 chips
+  @Local themes: MangaTheme[] = MangaSources.current().themes(); // 分类 chips(字段级初始化,不依赖 aboutToAppear)
   @Local themeIndex: number = 0;
   @Local orderByPopular: boolean = false; // false = 最新
   @Local comics: MangaBrief[] = [];
@@ -47,10 +48,16 @@ export struct MangaTabPage {
   @Local gridW: number = 0;
 
   async aboutToAppear(): Promise<void> {
-    await DatabaseHelper.init(getContext(this));
+    // 列表加载只依赖网络源,不依赖数据库:先加载,DB 初始化放后面且失败不致命
+    // (async aboutToAppear 的异常不会上浮,await 一旦 reject 后面的代码全部静默不执行)
     this.sourceId = MangaSources.current().id;
     this.themes = MangaSources.current().themes();
     this.reload();
+    try {
+      await DatabaseHelper.init(getContext(this));
+    } catch (e) {
+      Log.warn('manga tab db init failed', `${e}`);
+    }
   }
 
   get ordering(): string {
@@ -90,12 +97,14 @@ export struct MangaTabPage {
     this.loading = true;
     this.error = '';
     try {
-      const theme = this.themes[this.themeIndex].value;
+      const t = this.themes[this.themeIndex];
+      const theme = t !== undefined ? t.value : '';
       const fresh = await MangaSources.current().comicsList(theme, this.ordering, this.listOffset, PAGE_SIZE);
       this.comics = this.comics.concat(fresh);
       this.listOffset += fresh.length;
     } catch (e) {
       this.error = `${e}`;
+      Log.warn('manga list load failed', `${e}`);
     } finally {
       this.loading = false;
     }

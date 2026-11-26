@@ -150,11 +150,25 @@ const BUILTIN_SOURCES: string[][] = [
 
 export class DatabaseHelper {
   private static store: relationalStore.RdbStore | null = null;
+  /** 进行中的 init Promise(并发调用共享同一次初始化,防止双跑 migrate 撞 duplicate column) */
+  private static pending: Promise<relationalStore.RdbStore> | null = null;
 
   static async init(context: Context): Promise<relationalStore.RdbStore> {
     if (DatabaseHelper.store !== null) {
       return DatabaseHelper.store;
     }
+    if (DatabaseHelper.pending !== null) {
+      return await DatabaseHelper.pending;
+    }
+    DatabaseHelper.pending = DatabaseHelper.doInit(context);
+    try {
+      return await DatabaseHelper.pending;
+    } finally {
+      DatabaseHelper.pending = null; // 失败允许下次重试
+    }
+  }
+
+  private static async doInit(context: Context): Promise<relationalStore.RdbStore> {
     const config: relationalStore.StoreConfig = {
       name: 'entry_db.db',
       securityLevel: relationalStore.SecurityLevel.S1
@@ -179,7 +193,12 @@ export class DatabaseHelper {
     for (const schema of SCHEMAS) {
       if (current < schema.version) {
         for (const sql of schema.statements) {
-          await store.executeSql(sql);
+          try {
+            await store.executeSql(sql);
+          } catch (e) {
+            // 幂等容忍:升级中断过/并发执行过时,列或行可能已存在,跳过继续
+            Log.warn('migration statement skipped', `${schema.version}`, `${e}`);
+          }
         }
         current = schema.version;
       }
