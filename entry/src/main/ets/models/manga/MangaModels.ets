@@ -42,8 +42,9 @@ export interface MangaDetail {
 export interface MangaChapter {
   uuid: string;
   name: string;
-  index: number; // 0 = 最新(copymanga 章节列表倒序)
-  size: number; // 页数
+  index: number; // 0 = 第 1 话(站方排序还原后的连续序号)
+  size: number; // 页数(mkzhan 章节列表无此值,恒 0)
+  vip: boolean; // mkzhan VIP 章节(仅徽标展示;2026-11-26 实测匿名也能拉到图)
 }
 
 /** 阅读一话:已按真实页码排序的图片 URL 列表 */
@@ -60,4 +61,5 @@ export interface ComicSnapshot {
   detail: MangaDetail;
   chapters: MangaChapter[];
   savedAt: number; // epoch ms,判断快照新旧
+  sourceId?: string; // 来源漫画源 id(多源;旧快照无此字段,读出按 copymanga)
 }

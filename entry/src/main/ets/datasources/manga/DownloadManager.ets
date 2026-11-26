@@ -1,4 +1,4 @@
-import { MangaClient } from './MangaClient';
+import { MangaSources } from './MangaSource';
 import { MangaCache } from './MangaCache';
 import { ComicSnapshot, MangaChapter, MangaDetail } from '../../models/manga/MangaModels';
 import { Prefs, StoredDownloadTask } from '../../db/Prefs';
@@ -8,6 +8,7 @@ import { TransferScheduler } from '../../common/TransferScheduler';
 /** 单章下载任务(字段 @Trace,页面绑定实时刷新) */
 @ObservedV2
 export class DownloadTaskVM {
+  readonly sourceId: string; // 漫画源 id:下载按任务源路由,双源队列互不干扰
   readonly pathWord: string;
   readonly comicName: string;
   readonly uuid: string;
@@ -16,7 +17,8 @@ export class DownloadTaskVM {
   @Trace done: number = 0;
   @Trace total: number = 0;
 
-  constructor(pathWord: string, comicName: string, uuid: string, chapterName: string) {
+  constructor(sourceId: string, pathWord: string, comicName: string, uuid: string, chapterName: string) {
+    this.sourceId = sourceId;
     this.pathWord = pathWord;
     this.comicName = comicName;
     this.uuid = uuid;
@@ -57,6 +59,7 @@ export class DownloadManager {
     const rows: StoredDownloadTask[] = [];
     for (const t of DownloadManager.tasks) {
       const row: StoredDownloadTask = {
+        sourceId: t.sourceId,
         pathWord: t.pathWord,
         comicName: t.comicName,
         uuid: t.uuid,
@@ -83,7 +86,9 @@ export class DownloadManager {
       if (Prefs.getDownloadedChapters(row.pathWord).indexOf(row.uuid) >= 0) {
         continue;
       }
-      const vm = new DownloadTaskVM(row.pathWord, row.comicName, row.uuid, row.chapterName);
+      // 旧版本队列快照没有 sourceId:那批任务全属 copymanga,按它恢复(不跟随当前源)
+      const sid = row.sourceId !== undefined && row.sourceId.length > 0 ? row.sourceId : 'copymanga';
+      const vm = new DownloadTaskVM(sid, row.pathWord, row.comicName, row.uuid, row.chapterName);
       vm.total = row.total;
       vm.done = row.done;
       vm.status = row.status === 'paused' ? 'paused' : 'queued';
@@ -146,7 +151,7 @@ export class DownloadManager {
   /** 入队一批章节;返回实际新增数(已完成/已排队自动跳过)。
    *  同时确保整部快照+封面已落盘(离线详情/阅读器/离线库都以此为准)。
    *  调用方页面需先 MangaCache.init(context)。 */
-  static enqueue(detail: MangaDetail, chapters: MangaChapter[]): number {
+  static enqueue(sourceId: string, detail: MangaDetail, chapters: MangaChapter[]): number {
     const pathWord = detail.pathWord;
     const downloaded = Prefs.getDownloadedChapters(pathWord);
     let added = 0;
@@ -159,12 +164,12 @@ export class DownloadManager {
       if (dup !== undefined) {
         continue;
       }
-      const vm = new DownloadTaskVM(pathWord, detail.name, ch.uuid, ch.name);
+      const vm = new DownloadTaskVM(sourceId, pathWord, detail.name, ch.uuid, ch.name);
       DownloadManager.tasks.push(vm);
       DownloadManager.queue.push(vm);
       added++;
     }
-    DownloadManager.ensureSnapshot(detail, chapters);
+    DownloadManager.ensureSnapshot(sourceId, detail, chapters);
     if (added > 0) {
       DownloadManager.persist();
       DownloadManager.notify();
@@ -174,7 +179,7 @@ export class DownloadManager {
   }
 
   /** 快照缺失或章节有更新时重写(联网时调用;封面顺带进本地缓存) */
-  private static ensureSnapshot(detail: MangaDetail, chapters: MangaChapter[]): void {
+  private static ensureSnapshot(sourceId: string, detail: MangaDetail, chapters: MangaChapter[]): void {
     const existing = MangaCache.loadComicSnapshot(detail.pathWord);
     if (existing !== null && existing.chapters.length === chapters.length) {
       return;
@@ -182,7 +187,8 @@ export class DownloadManager {
     const snap: ComicSnapshot = {
       detail: detail,
       chapters: chapters,
-      savedAt: new Date().getTime()
+      savedAt: new Date().getTime(),
+      sourceId: sourceId
     };
     MangaCache.saveComicSnapshot(snap);
     MangaCache.download(detail.cover).then((_ok: boolean) => {
@@ -278,8 +284,9 @@ export class DownloadManager {
       DownloadManager.notify();
       DownloadManager.persist();
       try {
-        // 有意直调 MangaClient(K1 阶段全部任务都属于 copymanga);K3 加 sourceId 后改为按任务源路由
-        const imgs = await MangaClient.chapterImages(t.pathWord, t.uuid);
+        // 按任务自己的源路由(源被移除时回退 copymanga,老任务行为不变)
+        const src = MangaSources.byId(t.sourceId) ?? MangaSources.byId('copymanga');
+        const imgs = await (src !== undefined ? src : MangaSources.current()).chapterImages(t.pathWord, t.uuid);
         MangaCache.saveChapterList(t.uuid, { name: imgs.chapterName, images: imgs.images });
         t.total = imgs.images.length;
         const stats = await MangaCache.downloadAll(imgs.images, 3, (_url: string, done: number, _total: number) => {

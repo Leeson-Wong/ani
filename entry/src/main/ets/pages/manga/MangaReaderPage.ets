@@ -1,4 +1,4 @@
-import { MangaSources } from '../../datasources/manga/MangaSource';
+import { MangaSource, MangaSources } from '../../datasources/manga/MangaSource';
 import { MangaCache } from '../../datasources/manga/MangaCache';
 import { MangaChapter, MangaChapterImages } from '../../models/manga/MangaModels';
 import { Nav } from '../../common/Nav';
@@ -38,6 +38,7 @@ export struct MangaReaderPage {
   private pathWord: string = '';
   private comicName: string = '';
   private startUuid: string = '';
+  private mangaSource: MangaSource = MangaSources.current(); // 本话所属源(章节表/图片按它路由)
   private currentUuid: string = '';
   private chromeTimer: number = -1;
   private firstLoad: boolean = true; // 首次进本页时才恢复章节内滚动位置
@@ -91,6 +92,17 @@ export struct MangaReaderPage {
     this.pathWord = p.pathWord;
     this.comicName = p.comicName;
     this.startUuid = p.startChapterUuid;
+    // 源优先级:导航参数 > 快照记录 > 当前源
+    const pSourceId = p.sourceId !== undefined && p.sourceId.length > 0 ? p.sourceId : '';
+    const snap0 = MangaCache.loadComicSnapshot(this.pathWord);
+    let sid = pSourceId;
+    if (sid.length === 0 && snap0 !== null && snap0.sourceId !== undefined && snap0.sourceId.length > 0) {
+      sid = snap0.sourceId;
+    }
+    if (sid.length === 0) {
+      sid = MangaSources.current().id;
+    }
+    this.mangaSource = MangaSources.byId(sid) ?? MangaSources.current();
     // 全屏态:让外壳撤掉安全区避让,画面从屏幕上边一直铺到下边
     AppChrome.setFullscreen(true);
     // 进阅读器即隐藏系统状态栏/手势条,不等章节加载完,避免首帧闪出
@@ -101,7 +113,7 @@ export struct MangaReaderPage {
     if (snap !== null && snap.chapters.length > 0) {
       this.chapters = snap.chapters;
     }
-    MangaSources.current().chapters(this.pathWord).then((chs: MangaChapter[]) => {
+    this.mangaSource.chapters(this.pathWord).then((chs: MangaChapter[]) => {
       this.chapters = chs;
       // 后台刷新到新列表后,重算当前话序号(目录高亮/上下话按钮依赖它)
       const idx = this.chapters.findIndex((c: MangaChapter) => c.uuid === this.currentUuid);
@@ -160,7 +172,7 @@ export struct MangaReaderPage {
     try {
       let imgs: MangaChapterImages | null = null;
       try {
-        imgs = await MangaSources.current().chapterImages(this.pathWord, uuid);
+        imgs = await this.mangaSource.chapterImages(this.pathWord, uuid);
         MangaCache.saveChapterList(uuid, { name: imgs.chapterName, images: imgs.images });
       } catch (e) {
         // 网络失败 → 离线兜底(清单有缓存就用,图片有几张算几张)
@@ -256,7 +268,7 @@ export struct MangaReaderPage {
       if (cachedList !== null && cachedList.images.length > 0) {
         urls = cachedList.images;
       } else {
-        const ni = await MangaSources.current().chapterImages(this.pathWord, next.uuid);
+        const ni = await this.mangaSource.chapterImages(this.pathWord, next.uuid);
         MangaCache.saveChapterList(next.uuid, { name: ni.chapterName, images: ni.images });
         urls = ni.images;
       }

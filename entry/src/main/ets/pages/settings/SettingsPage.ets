@@ -97,6 +97,9 @@ export struct SettingsPage {
       Text(`当前生效:${this.mangaEffective}`)
         .fontSize(12)
         .fontColor('#999999')
+      Text('以下域名设置只作用于「拷贝漫画」源;漫画源切换在漫画 Tab 顶部')
+        .fontSize(11)
+        .fontColor('#BBBBBB')
       TextInput({ placeholder: '自定义 API 域名,留空 = 自动回退镜像', text: this.mangaCustom })
         .onChange((v: string) => {
           this.mangaCustom = v;

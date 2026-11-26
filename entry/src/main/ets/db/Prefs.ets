@@ -3,6 +3,7 @@ import { Context } from '@kit.AbilityKit';
 
 /** 持久化的一条下载任务(队列重启后据此恢复) */
 export interface StoredDownloadTask {
+  sourceId?: string; // 漫画源 id(旧快照无此字段,恢复按 copymanga)
   pathWord: string;
   comicName: string;
   uuid: string;

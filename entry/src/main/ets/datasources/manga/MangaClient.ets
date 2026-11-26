@@ -246,7 +246,8 @@ export class MangaClient {
           uuid: uuid,
           name: jStr(item, 'name').length > 0 ? jStr(item, 'name') : `第${out.length + 1}话`,
           index: jNum(item, 'index', 0),
-          size: jNum(item, 'size', 0)
+          size: jNum(item, 'size', 0),
+          vip: false // copymanga 无 VIP 章节概念
         };
         out.push(ch);
       }

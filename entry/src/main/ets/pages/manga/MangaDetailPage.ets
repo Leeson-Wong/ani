@@ -1,5 +1,5 @@
 import { promptAction } from '@kit.ArkUI';
-import { MangaSources } from '../../datasources/manga/MangaSource';
+import { MangaSource, MangaSources } from '../../datasources/manga/MangaSource';
 import { MangaCache } from '../../datasources/manga/MangaCache';
 import { DownloadManager, DownloadTaskVM } from '../../datasources/manga/DownloadManager';
 import { ComicSnapshot, MangaChapter, MangaDetail } from '../../models/manga/MangaModels';
@@ -30,6 +30,8 @@ export struct MangaDetailPage {
   @Local dlVersion: number = 0; // DownloadManager 变更信号(驱动任务行数重算)
   private pathWord: string = '';
   private fallbackName: string = '';
+  private sourceId: string = 'copymanga'; // 本页漫画所属源(网络刷新/下载都按它路由)
+  private mangaSource: MangaSource = MangaSources.current();
   private dlCb: (() => void) | null = null;
   // 滑动多选:按下起点 + 当前划到的章节
   private rowRects: RowRect[] = [];
@@ -49,6 +51,16 @@ export struct MangaDetailPage {
     }
     this.pathWord = p.pathWord;
     this.fallbackName = p.name;
+    // 源优先级:导航参数 > 本地快照记录 > 当前源(旧入口无 sourceId 时尽量还原正确源)
+    this.sourceId = p.sourceId !== undefined && p.sourceId.length > 0 ? p.sourceId : '';
+    const snap0 = MangaCache.loadComicSnapshot(this.pathWord);
+    if (this.sourceId.length === 0 && snap0 !== null && snap0.sourceId !== undefined && snap0.sourceId.length > 0) {
+      this.sourceId = snap0.sourceId;
+    }
+    if (this.sourceId.length === 0) {
+      this.sourceId = MangaSources.current().id;
+    }
+    this.mangaSource = MangaSources.byId(this.sourceId) ?? MangaSources.current();
     MangaCache.init(getContext(this));
     DownloadManager.restore(); // 幂等:详情页横幅也能看到恢复的队列
     this.downloadedUuids = Prefs.getDownloadedChapters(this.pathWord);
@@ -59,20 +71,22 @@ export struct MangaDetailPage {
     DownloadManager.onChange(this.dlCb);
     this.loading = true;
     // ① 本地快照先顶上:有快照立即渲染(离线也能进详情),网络刷新放后面
-    const snap = MangaCache.loadComicSnapshot(this.pathWord);
+    const snap = snap0 !== null ? snap0 : MangaCache.loadComicSnapshot(this.pathWord);
     if (snap !== null) {
       this.detail = snap.detail;
       this.chapters = snap.chapters;
       this.loading = false;
     }
-    // ② 网络拉最新;成功则写穿透快照(离线兜底数据始终保持较新)
+    // ② 网络拉最新(按本页源);成功则写穿透快照(离线兜底数据始终保持较新)
     try {
-      const d = await MangaSources.current().detail(this.pathWord);
-      const chs = await MangaSources.current().chapters(this.pathWord);
+      const d = await this.mangaSource.detail(this.pathWord);
+      const chs = await this.mangaSource.chapters(this.pathWord);
       this.detail = d;
       this.chapters = chs;
       this.offlineMode = false;
-      const fresh: ComicSnapshot = { detail: d, chapters: chs, savedAt: new Date().getTime() };
+      const fresh: ComicSnapshot = {
+        detail: d, chapters: chs, savedAt: new Date().getTime(), sourceId: this.sourceId
+      };
       MangaCache.saveComicSnapshot(fresh);
       MangaCache.download(d.cover).then((_ok: boolean) => {
       }); // 封面进本地缓存,离线库/详情页离线打开时用
@@ -292,7 +306,7 @@ export struct MangaDetailPage {
       promptAction.showToast({ message: '详情未加载,不能下载' });
       return;
     }
-    const added = DownloadManager.enqueue(this.detail, picked);
+    const added = DownloadManager.enqueue(this.sourceId, this.detail, picked);
     this.exitSelectMode();
     promptAction.showToast({ message: added > 0 ? `已加入下载队列(${added} 话),可在「我的→下载管理」查看` : '所选章节已在队列或已缓存' });
   }
@@ -301,7 +315,8 @@ export struct MangaDetailPage {
     const params: MangaReaderNavParam = {
       pathWord: this.pathWord,
       comicName: this.detail !== null ? this.detail.name : this.fallbackName,
-      startChapterUuid: chapterUuid
+      startChapterUuid: chapterUuid,
+      sourceId: this.sourceId
     };
     Nav.stack.pushPathByName('MangaReader', params);
   }
@@ -329,6 +344,14 @@ export struct MangaDetailPage {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
+      if (ch.vip === true) {
+        Text('VIP')
+          .fontSize(9)
+          .fontColor('#B8860B')
+          .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+          .borderRadius(3)
+          .backgroundColor('#FFF3D6')
+      }
       Text(this.chapterBadge(ch.uuid))
         .fontSize(11)
         .fontColor(this.chapterBadge(ch.uuid) === '失败' ? '#CC3333' : '#999999')

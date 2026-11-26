@@ -137,7 +137,12 @@ export struct MangaTabPage {
   }
 
   pushDetail(b: MangaBrief): void {
-    const params: MangaDetailNavParam = { pathWord: b.pathWord, name: b.name, cover: b.cover };
+    const params: MangaDetailNavParam = {
+      pathWord: b.pathWord,
+      name: b.name,
+      cover: b.cover,
+      sourceId: this.sourceId
+    };
     Nav.stack.pushPathByName('MangaDetail', params);
   }
 

@@ -1,8 +1,15 @@
 import { promptAction } from '@kit.ArkUI';
 import { DownloadManager, DownloadTaskVM } from '../../datasources/manga/DownloadManager';
+import { MangaSources } from '../../datasources/manga/MangaSource';
 import { MangaCache } from '../../datasources/manga/MangaCache';
 import { VideoCache } from '../../datasources/video/VideoCache';
 import { VideoDownloadManager, VideoTaskVM } from '../../datasources/video/VideoDownloadManager';
+
+/** 漫画任务行上的来源短标签(双源队列可读) */
+function sourceLabel(sourceId: string): string {
+  const s = MangaSources.byId(sourceId);
+  return s !== undefined ? s.name : '拷贝漫画';
+}
 
 /** 全局下载队列:漫画章节任务 + 影视剧集任务(进度/暂停/继续/重试/清理) */
 @ComponentV2
@@ -158,7 +165,7 @@ export struct DownloadsPage {
   mangaRow(t: DownloadTaskVM) {
     Column({ space: 6 }) {
       Row({ space: 8 }) {
-        Text(t.comicName)
+        Text(`${sourceLabel(t.sourceId)}·${t.comicName}`)
           .fontSize(12)
           .fontColor('#999999')
           .maxLines(1)

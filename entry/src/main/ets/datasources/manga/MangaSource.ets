@@ -1,4 +1,5 @@
 import { MangaClient } from './MangaClient';
+import { MkzhanClient } from './MkzhanClient';
 import { Prefs } from '../../db/Prefs';
 import {
   MangaBrief, MangaChapter, MangaChapterImages, MangaDetail, MangaHome, MangaTheme
@@ -79,9 +80,59 @@ export class CopymangaSource implements MangaSource {
   }
 }
 
+/** 漫客栈分类 chips(主题 id 见 MkzhanClient.THEME_NAMES;2026-11-26 实测) */
+const MKZHAN_THEMES: MangaTheme[] = [
+  { label: '全部', value: '' },
+  { label: '霸总', value: '1' },
+  { label: '修真', value: '2' },
+  { label: '恋爱', value: '3' },
+  { label: '校园', value: '4' },
+  { label: '冒险', value: '5' },
+  { label: '搞笑', value: '6' },
+  { label: '生活', value: '7' },
+  { label: '热血', value: '8' },
+  { label: '架空', value: '9' },
+  { label: '后宫', value: '10' },
+  { label: '玄幻', value: '12' }
+];
+
+/** 漫客栈(mkzhan.com)实现:端点与结构见 MkzhanClient 头注释 */
+export class MkzhanSource implements MangaSource {
+  readonly id: string = 'mkzhan';
+  readonly name: string = '漫客栈';
+
+  themes(): MangaTheme[] {
+    return MKZHAN_THEMES;
+  }
+
+  home(): Promise<MangaHome> {
+    return MkzhanClient.home();
+  }
+
+  comicsList(theme: string, ordering: string, offset: number, limit: number = 30): Promise<MangaBrief[]> {
+    return MkzhanClient.comicsList(theme, ordering, offset, limit);
+  }
+
+  search(q: string, offset: number = 0, limit: number = 20): Promise<MangaBrief[]> {
+    return MkzhanClient.search(q, offset, limit);
+  }
+
+  detail(pathWord: string): Promise<MangaDetail> {
+    return MkzhanClient.detail(pathWord);
+  }
+
+  chapters(pathWord: string, group: string = 'default'): Promise<MangaChapter[]> {
+    return MkzhanClient.chapters(pathWord, group);
+  }
+
+  chapterImages(pathWord: string, chapterUuid: string): Promise<MangaChapterImages> {
+    return MkzhanClient.chapterImages(pathWord, chapterUuid);
+  }
+}
+
 /**
  * 漫画源注册表:页面一律经 MangaSources.current() 取源,不直接 import 具体客户端。
- * 当前源 id 存 Prefs(mangaSourceId),默认 copymanga;K2 追加 mkzhan 只需在 buildRegistry 加一项。
+ * 当前源 id 存 Prefs(mangaSourceId),默认 copymanga。
  * 注册表惰性构建(首次访问才 new),不依赖类静态字段初始化顺序。
  */
 export class MangaSources {
@@ -90,7 +141,8 @@ export class MangaSources {
   private static all(): MangaSource[] {
     if (MangaSources.registry === null) {
       const list: MangaSource[] = [];
-      list.push(new CopymangaSource()); // K2:此处追加 MkzhanSource
+      list.push(new CopymangaSource());
+      list.push(new MkzhanSource());
       MangaSources.registry = list;
     }
     return MangaSources.registry;

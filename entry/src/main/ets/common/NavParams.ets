@@ -39,12 +39,14 @@ export interface MangaDetailNavParam {
   pathWord: string;
   name: string;
   cover: string;
+  sourceId?: string; // 漫画源 id(多源;缺省 = 当前源)
 }
 
 export interface MangaReaderNavParam {
   pathWord: string;
   comicName: string;
   startChapterUuid: string; // '' = 从进度/第一话
+  sourceId?: string; // 漫画源 id(多源;缺省 = 当前源)
 }
 
 export interface LivePlayNavParam {

@@ -13,6 +13,7 @@ interface OfflineComicRow {
   pathWord: string;
   name: string;
   cover: string;
+  sourceId: string; // 所属漫画源(打开详情按它路由;旧快照缺省 copymanga)
   cachedCount: number;
   totalCount: number;
   savedAt: number;
@@ -61,6 +62,7 @@ export struct OfflineLibraryPage {
         pathWord: pw,
         name: snap.detail.name,
         cover: snap.detail.cover,
+        sourceId: snap.sourceId !== undefined && snap.sourceId.length > 0 ? snap.sourceId : 'copymanga',
         cachedCount: Math.min(marks.length, snap.chapters.length),
         totalCount: snap.chapters.length,
         savedAt: snap.savedAt
@@ -117,7 +119,8 @@ export struct OfflineLibraryPage {
     const params: MangaDetailNavParam = {
       pathWord: row.pathWord,
       name: row.name,
-      cover: row.cover
+      cover: row.cover,
+      sourceId: row.sourceId
     };
     Nav.stack.pushPathByName('MangaDetail', params);
   }
