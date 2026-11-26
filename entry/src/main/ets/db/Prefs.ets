@@ -259,6 +259,56 @@ export class Prefs {
     Prefs.store.flush();
   }
 
+  /** ===== 数据源稳定性 ===== */
+
+  /** 漫画 API 最近一次命中的域名(域名池自动回退时记录,下次优先) */
+  static getMangaApiBase(): string {
+    if (Prefs.store === null) {
+      return '';
+    }
+    return Prefs.store.getSync('mangaApiBase', '') as string;
+  }
+
+  static setMangaApiBase(v: string): void {
+    if (Prefs.store === null) {
+      return;
+    }
+    Prefs.store.putSync('mangaApiBase', v);
+    Prefs.store.flush();
+  }
+
+  /** 用户自定义的漫画 API 域名('' = 未设置,走内置域名池自动回退) */
+  static getMangaApiCustom(): string {
+    if (Prefs.store === null) {
+      return '';
+    }
+    return Prefs.store.getSync('mangaApiCustom', '') as string;
+  }
+
+  static setMangaApiCustom(v: string): void {
+    if (Prefs.store === null) {
+      return;
+    }
+    Prefs.store.putSync('mangaApiCustom', v);
+    Prefs.store.flush();
+  }
+
+  /** 上次源复活探测的时间戳(每日一次的门闩) */
+  static getLastSourceRevive(): number {
+    if (Prefs.store === null) {
+      return 0;
+    }
+    return Number(Prefs.store.getSync('lastSourceRevive', 0));
+  }
+
+  static setLastSourceRevive(v: number): void {
+    if (Prefs.store === null) {
+      return;
+    }
+    Prefs.store.putSync('lastSourceRevive', v);
+    Prefs.store.flush();
+  }
+
   /** 某集真实时长秒(下载完成时记录;本地代理播放列表用) */
   static getVideoDurationSec(videoKey: string, episodeIndex: number): number {
     if (Prefs.store === null) {

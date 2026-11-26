@@ -9,6 +9,8 @@ export interface CmsSourceRow {
   format: string; // 'json' | 'xml'
   enabled: boolean;
   sort: number;
+  failCount: number; // 连续网络层失败次数(成功清零)
+  autoOff: boolean; // true = 因连续失败被自动停用(每日启动探测复活)
 }
 
 export interface ShelfBookRow {
@@ -128,6 +130,14 @@ const SCHEMAS: DbSchema[] = [
          'https://jyzyapi.com/api.php/provide/vod')`,
       `INSERT INTO cms_sources (name, api_base, format, enabled, sort, created_at) VALUES
         ('金鹰', 'https://jyzyapi.com/api.php/provide/vod', 'json', 1, 2, 0)`
+    ]
+  },
+  {
+    // v4(2026-11-25):源健康分——连续网络层失败自动停用的计数与标记(SourceHealth 用)
+    version: 4,
+    statements: [
+      `ALTER TABLE cms_sources ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE cms_sources ADD COLUMN auto_off INTEGER NOT NULL DEFAULT 0`
     ]
   }
 ];

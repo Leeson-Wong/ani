@@ -1,14 +1,69 @@
 import { bundleManager } from '@kit.AbilityKit';
+import { promptAction } from '@kit.ArkUI';
 import { Nav } from '../../common/Nav';
+import { Prefs } from '../../db/Prefs';
+import { MangaClient } from '../../datasources/manga/MangaClient';
 
-/** 我的:版本信息 + 影视源管理 + 声明 */
+/** 我的:版本信息 + 影视源管理 + 漫画域名 + 声明 */
 @ComponentV2
 export struct SettingsPage {
   @Local versionName: string = '';
+  @Local mangaCustom: string = '';
+  @Local mangaEffective: string = '';
+  @Local mangaTesting: boolean = false;
 
   aboutToAppear(): void {
     const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
     this.versionName = `${info.versionName}(${info.versionCode})`;
+    if (Prefs.isReady) {
+      this.mangaCustom = Prefs.getMangaApiCustom();
+    }
+    this.refreshEffective();
+  }
+
+  private refreshEffective(): void {
+    const good = Prefs.isReady ? Prefs.getMangaApiBase() : '';
+    if (this.mangaCustom.trim().length > 0) {
+      this.mangaEffective = this.mangaCustom.trim();
+      return;
+    }
+    if (good.length > 0) {
+      this.mangaEffective = `自动(命中 ${good})`;
+      return;
+    }
+    this.mangaEffective = '自动(api.mangacopy.com 起,失败逐个换镜像)';
+  }
+
+  /** 保存自定义域名并实测;留空保存 = 恢复自动回退 */
+  async saveMangaBase(): Promise<void> {
+    if (this.mangaTesting) {
+      return;
+    }
+    const v = this.mangaCustom.trim();
+    if (v.length > 0 && !/^https?:\/\//.test(v)) {
+      promptAction.showToast({ message: '域名需以 http(s):// 开头' });
+      return;
+    }
+    this.mangaTesting = true;
+    try {
+      Prefs.setMangaApiCustom(v);
+      await MangaClient.home(); // 走域名池:自定义优先,失败自动换镜像
+      const good = Prefs.getMangaApiBase();
+      this.refreshEffective();
+      promptAction.showToast({ message: `连接成功,命中 ${good}` });
+    } catch (e) {
+      this.refreshEffective();
+      promptAction.showToast({ message: `测试失败:${e}。已保存,仍会自动尝试镜像` });
+    } finally {
+      this.mangaTesting = false;
+    }
+  }
+
+  clearMangaBase(): void {
+    Prefs.setMangaApiCustom('');
+    this.mangaCustom = '';
+    this.refreshEffective();
+    promptAction.showToast({ message: '已恢复自动选择' });
   }
 
   @Builder
@@ -34,6 +89,41 @@ export struct SettingsPage {
     .onClick(onTap)
   }
 
+  @Builder
+  mangaSourceCard() {
+    Column({ space: 10 }) {
+      Text('漫画数据源')
+        .fontSize(16)
+      Text(`当前生效:${this.mangaEffective}`)
+        .fontSize(12)
+        .fontColor('#999999')
+      TextInput({ placeholder: '自定义 API 域名,留空 = 自动回退镜像', text: this.mangaCustom })
+        .onChange((v: string) => {
+          this.mangaCustom = v;
+        })
+      Row({ space: 10 }) {
+        Button(this.mangaTesting ? '测试中…' : '保存并测试')
+          .layoutWeight(1)
+          .enabled(!this.mangaTesting)
+          .onClick(() => {
+            this.saveMangaBase();
+          })
+        Button('恢复自动')
+          .layoutWeight(1)
+          .backgroundColor('#EEEEEE')
+          .fontColor('#333333')
+          .onClick(() => {
+            this.clearMangaBase();
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding(14)
+    .backgroundColor(Color.White)
+    .borderRadius(10)
+  }
+
   build() {
     Scroll() {
       Column({ space: 12 }) {
@@ -47,7 +137,7 @@ export struct SettingsPage {
           this.item('离线与下载', '已缓存漫画 / 下载队列进度 / 整部删除', () => {
             Nav.stack.pushPathByName('Offline', null);
           })
-          this.item('影视源管理', '添加 / 探测 / 启停苹果CMS 采集站', () => {
+          this.item('影视源管理', '添加 / 探测 / 启停苹果CMS 采集站;死源自动停用与复活', () => {
             Nav.stack.pushPathByName('CmsSourceManage', null);
           })
           this.item('观看历史', '续播 / 管理观看记录', () => {
@@ -57,6 +147,8 @@ export struct SettingsPage {
           })
         }
         .width('100%')
+
+        this.mangaSourceCard()
 
         Column({ space: 6 }) {
           Text(`书影 ani ${this.versionName}`)

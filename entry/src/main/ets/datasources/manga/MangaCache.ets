@@ -1,7 +1,7 @@
-import { http } from '@kit.NetworkKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { Context } from '@kit.AbilityKit';
 import { Log } from '../../common/Logger';
+import { HttpClient } from '../http/HttpClient';
 import { ComicSnapshot } from '../../models/manga/MangaModels';
 
 /** 已缓存章节的图片清单(离线兜底用) */
@@ -83,26 +83,17 @@ export class MangaCache {
     if (MangaCache.localPath(url).length > 0) {
       return true;
     }
-    const req = http.createHttp();
     try {
-      const resp = await req.request(url, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: 8000,
-        readTimeout: 20000,
-        header: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0' }
-      });
-      if (resp.responseCode < 200 || resp.responseCode >= 300) {
-        return false;
-      }
-      const data = resp.result as ArrayBuffer;
+      const data = await HttpClient.getBinary(url,
+        { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0' },
+        { connectMs: 8000, readMs: 20000, quiet: true });
       if (data.byteLength < 1024) {
         return false; // 太小必是错误页
       }
       const p = `${MangaCache.root}/${MangaCache.fileName(url)}`;
       const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
       try {
-        fileIo.writeSync(f.fd, data);
+        fileIo.writeSync(f.fd, data.buffer as ArrayBuffer);
       } finally {
         fileIo.closeSync(f);
       }
@@ -110,8 +101,6 @@ export class MangaCache {
       return true;
     } catch (e) {
       return false;
-    } finally {
-      req.destroy();
     }
   }
 

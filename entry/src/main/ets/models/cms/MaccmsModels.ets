@@ -92,3 +92,18 @@ export interface ProbeResult {
   categories: number;
   message: string;
 }
+
+/** 内置候选源(名称 + API 地址;含当前已死的,由探测按实测筛选) */
+export interface CandidateSource {
+  name: string;
+  apiBase: string;
+}
+
+/** 候选源批量探测结果(ok 仅在 API 与播放链路双验证通过时为 true) */
+export interface CandidateProbeResult {
+  name: string;
+  apiBase: string;
+  ok: boolean;
+  categories: number;
+  message: string;
+}

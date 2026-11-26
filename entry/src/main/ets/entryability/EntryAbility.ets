@@ -10,6 +10,7 @@ import { MangaCache } from '../datasources/manga/MangaCache';
 import { DownloadManager } from '../datasources/manga/DownloadManager';
 import { VideoCache } from '../datasources/video/VideoCache';
 import { VideoDownloadManager } from '../datasources/video/VideoDownloadManager';
+import { SourceHealth } from '../datasources/cms/SourceHealth';
 
 const DOMAIN = 0x0000;
 
@@ -36,6 +37,12 @@ export default class EntryAbility extends UIAbility {
       VideoDownloadManager.restore();
     }).catch((e: Object) => {
       hilog.error(DOMAIN, 'AniApp', 'prefs init failed: %{public}s', `${e}`);
+    });
+    // 源健康:每日一次后台探测复活被自动停用的影视源(两个 init 都幂等)
+    Promise.all([DatabaseHelper.init(this.context), Prefs.init(this.context)]).then(() => {
+      SourceHealth.maybeDailyRevive();
+    }).catch((e: Object) => {
+      hilog.warn(DOMAIN, 'AniApp', 'source revive bootstrap failed: %{public}s', `${e}`);
     });
   }
 

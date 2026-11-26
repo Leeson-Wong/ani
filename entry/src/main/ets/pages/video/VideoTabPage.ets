@@ -143,14 +143,14 @@ export struct VideoTabPage {
       return;
     }
     this.loading = true;
+    this.groups = [];
+    this.searched = true;
     try {
-      const results = await CmsSourceManager.searchAll(kw);
-      const groups: SearchGroup[] = [];
-      for (const r of results) {
-        groups.push({ sourceName: r.source.name, items: r.items, error: r.error });
-      }
-      this.groups = groups;
-      this.searched = true;
+      // 流式搜索:每个源完成即渲染,快的源先出结果,死源不再拖住首屏
+      await CmsSourceManager.searchAllStream(kw, (r) => {
+        const group: SearchGroup = { sourceName: r.source.name, items: r.items, error: r.error };
+        this.groups = this.groups.concat([group]);
+      });
     } catch (e) {
       promptAction.showToast({ message: `搜索失败:${e}` });
     } finally {

@@ -1,11 +1,23 @@
 import { HttpClient } from '../http/HttpClient';
 import { asObj, jArr, jNum, jObj, jStr } from '../../common/Json';
 import { AppError } from '../../common/AppError';
+import { Prefs } from '../../db/Prefs';
 import {
   MangaBrief, MangaChapter, MangaChapterImages, MangaDetail, MangaHome, MangaRankItem
 } from '../../models/manga/MangaModels';
 
-const BASE = 'https://api.mangacopy.com';
+/** 已知镜像域(尝试顺序即数组顺序);主域漂移时自动逐个回退,命中的写 Prefs 下次优先。
+ *  api.2024manga.com 是第三方安卓客户端 fumiama/copymanga 的默认"大陆线路"(与 mangacopy 同一套 /api/v3),
+ *  部分运营商网络可达 mangacopy 不可达的域(反之亦然),放进池子两边都照顾。 */
+const MANGA_BASES: string[] = [
+  'https://api.mangacopy.com',
+  'https://api.2024manga.com',
+  'https://www.2024manga.com',
+  'https://www.mangacopy.com',
+  'https://mangacopy.com',
+  'https://copymanga.site',
+  'https://api.copymanga.info'
+];
 
 /** 乱序还原中间结构 */
 interface ImagePair {
@@ -17,8 +29,29 @@ interface ImagePair {
  * copymanga(拷贝漫画)客户端。
  * 必须携带 platform/region/version/webp 请求头,否则接口返回裸 "error"。
  * 章节图片接口返回乱序 contents,由 words[] 指定每张图的真实页码,需还原。
+ * 域名会漂移:get() 按域名池逐个尝试(用户自定义 > 上次命中 > 内置镜像),
+ * 裸 error/HTML/网络错误都视为域名级失败换下一个;API 已应答的业务错误直接抛。
  */
 export class MangaClient {
+  /** 域名候选:用户自定义(设置页)→ 上次命中(Prefs)→ 内置镜像,去重保序 */
+  private static baseCandidates(): string[] {
+    const out: string[] = [];
+    const custom = Prefs.getMangaApiCustom();
+    if (custom.length > 0) {
+      out.push(custom);
+    }
+    const good = Prefs.getMangaApiBase();
+    if (good.length > 0 && out.indexOf(good) < 0) {
+      out.push(good);
+    }
+    for (const b of MANGA_BASES) {
+      if (out.indexOf(b) < 0) {
+        out.push(b);
+      }
+    }
+    return out;
+  }
+
   private static headers(): Record<string, string> {
     return {
       'platform': '1',
@@ -29,16 +62,39 @@ export class MangaClient {
   }
 
   private static async get(path: string): Promise<Record<string, Object> | undefined> {
-    const text = await HttpClient.getText(`${BASE}${path}`, MangaClient.headers());
-    if (text === 'error' || text.trim().startsWith('<')) {
-      throw new AppError('漫画接口不可用(可能域名又漂移了)');
+    const bases = MangaClient.baseCandidates();
+    let lastErr = '';
+    for (const base of bases) {
+      let text = '';
+      try {
+        text = await HttpClient.getText(`${base}${path}`, MangaClient.headers(),
+          { connectMs: 5000, readMs: 12000 });
+      } catch (e) {
+        lastErr = `${base}:${AppError.from(e as Object).message}`;
+        continue; // 网络层失败 → 换下一个域名
+      }
+      if (text === 'error' || text.trim().startsWith('<')) {
+        lastErr = `${base}:返回裸 error/HTML(域名可能已漂移)`;
+        continue;
+      }
+      let envelope: Record<string, Object>;
+      try {
+        envelope = JSON.parse(text) as Record<string, Object>;
+      } catch (e) {
+        lastErr = `${base}:响应非 JSON`;
+        continue;
+      }
+      const code = Number(envelope['code'] ?? 200);
+      if (code !== 200) {
+        // API 已正常应答,是内容级错误(如不存在),换域名也没用
+        throw new AppError(`漫画接口错误 ${code}:${jStr(envelope, 'message')}`);
+      }
+      if (base !== Prefs.getMangaApiBase()) {
+        Prefs.setMangaApiBase(base); // 记住命中的域名,下次优先
+      }
+      return jObj(envelope, 'results');
     }
-    const envelope = JSON.parse(text) as Record<string, Object>;
-    const code = Number(envelope['code'] ?? 200);
-    if (code !== 200) {
-      throw new AppError(`漫画接口错误 ${code}:${jStr(envelope, 'message')}`);
-    }
-    return jObj(envelope, 'results');
+    throw new AppError(`漫画全部域名不可用(已试 ${bases.length} 个;最后错误:${lastErr})`);
   }
 
   private static brief(raw: Record<string, Object>): MangaBrief | null {

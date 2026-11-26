@@ -1,8 +1,8 @@
-import { http } from '@kit.NetworkKit';
 import { fileIo } from '@kit.CoreFileKit';
 import cryptoFramework from '@ohos.security.cryptoFramework';
 import { resolveUrl } from '../../utils/UrlUtil';
 import { Log } from '../../common/Logger';
+import { HttpClient } from '../http/HttpClient';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -93,41 +93,12 @@ function stripPkcs7(data: Uint8Array): Uint8Array {
  */
 export class HlsDownloader {
   private static async fetchText(url: string): Promise<string> {
-    const req = http.createHttp();
-    try {
-      const resp = await req.request(url, {
-        method: http.RequestMethod.GET,
-        header: { 'user-agent': UA },
-        connectTimeout: 8000,
-        readTimeout: 15000,
-        expectDataType: http.HttpDataType.STRING
-      });
-      if (resp.responseCode < 200 || resp.responseCode >= 300) {
-        throw new Error(`HTTP ${resp.responseCode}`);
-      }
-      return resp.result as string;
-    } finally {
-      req.destroy();
-    }
+    return await HttpClient.getText(url, { 'user-agent': UA }, { connectMs: 8000, readMs: 15000 });
   }
 
   private static async fetchBinary(url: string): Promise<Uint8Array> {
-    const req = http.createHttp();
-    try {
-      const resp = await req.request(url, {
-        method: http.RequestMethod.GET,
-        header: { 'user-agent': UA },
-        connectTimeout: 8000,
-        readTimeout: 30000,
-        expectDataType: http.HttpDataType.ARRAY_BUFFER
-      });
-      if (resp.responseCode < 200 || resp.responseCode >= 300) {
-        throw new Error(`HTTP ${resp.responseCode}`);
-      }
-      return new Uint8Array(resp.result as ArrayBuffer);
-    } finally {
-      req.destroy();
-    }
+    return await HttpClient.getBinary(url, { 'user-agent': UA },
+      { connectMs: 8000, readMs: 30000, quiet: true });
   }
 
   /** master playlist 自动下钻一层 */
