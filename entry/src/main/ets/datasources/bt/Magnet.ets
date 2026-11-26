@@ -1,8 +1,12 @@
-/** magnet 链接解析:提取 infoHash(20 字节) / 显示名 / tracker 列表 */
+/** magnet 链接解析:提取 infoHash(20 字节) / 显示名 / tracker 列表。
+ *  v2(btmh)不拆 hash 只记录 hex:纯 v1 内核不支持 v2-only 种子,调用方据此给出明确提示;
+ *  hybrid 种子同时带 btih/btmh 两种 xt,取 btih(v1)那条。 */
 
 export class MagnetInfo {
   infoHash: Uint8Array = new Uint8Array(0);
   infoHashHex: string = '';
+  /** v2 的 btmh hex(64 位);hybrid 时与 infoHash 同时非空 */
+  v2HashHex: string = '';
   displayName: string = '';
   trackers: string[] = [];
 }
@@ -83,15 +87,18 @@ export function parseMagnet(magnet: string): MagnetInfo | undefined {
       // 保留原值
     }
     if (key === 'xt') {
-      const prefix = 'urn:btih:';
       const low = value.toLowerCase();
-      const pos = low.indexOf(prefix);
-      if (pos === 0) {
-        const raw = value.substring(prefix.length);
+      if (low.startsWith('urn:btih:')) {
+        const raw = low.substring('urn:btih:'.length);
         if (raw.length === 40) {
           hash = hexDecode(raw);
         } else if (raw.length === 32) {
           hash = base32Decode(raw);
+        }
+      } else if (low.startsWith('urn:btmh:')) {
+        const raw = low.substring('urn:btmh:'.length);
+        if (/^[0-9a-f]{64}$/.test(raw)) {
+          info.v2HashHex = raw;
         }
       }
     } else if (key === 'dn') {
@@ -102,7 +109,8 @@ export function parseMagnet(magnet: string): MagnetInfo | undefined {
   }
 
   if (hash.length !== 20) {
-    return undefined;
+    // 只有 v2(btmh)时也返回:调用方用 v2HashHex 给出「暂不支持 v2」的明确提示
+    return info.v2HashHex.length > 0 ? info : undefined;
   }
   info.infoHash = hash;
   info.infoHashHex = bytesToHex(hash);

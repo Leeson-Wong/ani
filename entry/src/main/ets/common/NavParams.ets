@@ -53,3 +53,7 @@ export interface LivePlayNavParam {
   channelsJson: string; // LiveChannel[] 序列化
   startIndex: number;
 }
+
+export interface BtDiagNavParam {
+  magnet: string; // '' = 打开诊断页手动输入/自动取最新
+}

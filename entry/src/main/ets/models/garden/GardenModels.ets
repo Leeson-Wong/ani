@@ -6,6 +6,7 @@ export interface GardenResource {
   title: string;
   type: string;
   magnet: string;
+  tracker: string; // 资源自带的 tracker 追加串(tr=...,拼接在 magnet 后即完整磁力)
   size: number; // 字节
   fansub: string;
   publisher: string;

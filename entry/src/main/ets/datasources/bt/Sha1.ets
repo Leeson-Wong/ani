@@ -1,4 +1,20 @@
-/** SHA1 摘要(纯实现,避免依赖加密框架 API 差异)。BT piece 校验 / infoHash 计算。 */
+/** SHA1 摘要。BT piece 校验 / infoHash 计算。
+ *  sha1Async 优先走 cryptoFramework(原生实现,大 piece 校验快得多),任何异常回退纯 JS 版。 */
+import { cryptoFramework } from '@kit.CryptoArchitectureKit';
+import { BtUtil } from './BtUtil';
+
+/** 异步 SHA1(cryptoFramework 优先,失败回退纯实现) */
+export async function sha1Async(data: Uint8Array): Promise<Uint8Array> {
+  try {
+    const md = cryptoFramework.createMd('SHA1');
+    const blob: cryptoFramework.DataBlob = { data: data };
+    await md.update(blob);
+    const digest = await md.digest();
+    return digest.data;
+  } catch (e) {
+    return sha1(data);
+  }
+}
 
 /** 左循环移位 */
 function rol(v: number, n: number): number {

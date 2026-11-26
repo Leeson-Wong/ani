@@ -4,6 +4,8 @@ import { GardenClient } from '../../datasources/garden/GardenClient';
 import { DatabaseHelper } from '../../db/DatabaseHelper';
 import { Prefs } from '../../db/Prefs';
 import { GardenResource } from '../../models/garden/GardenModels';
+import { Nav } from '../../common/Nav';
+import { BtDiagNavParam } from '../../common/NavParams';
 
 function formatSize(bytes: number): string {
   if (bytes <= 0) {
@@ -65,6 +67,29 @@ export struct GardenRadarPage {
     });
   }
 
+  openDiag(magnet: string): void {
+    const params: BtDiagNavParam = { magnet: magnet };
+    Nav.stack.pushPathByName('BtDiag', params);
+  }
+
+  /** 长按条目:复制磁力 / 对该资源跑 BT 诊断 */
+  itemAction(item: GardenResource): void {
+    promptAction.showDialog({
+      title: item.title.length > 24 ? `${item.title.substring(0, 24)}…` : item.title,
+      message: 'BT 诊断会连 tracker/peer,实测该资源当前能否下载与速度',
+      buttons: [
+        { text: '复制磁力', color: '#666666' },
+        { text: 'BT 诊断此资源', color: '#3471D5' }
+      ]
+    }).then((result) => {
+      if (result.index === 0) {
+        this.copyMagnet(item.magnet);
+      } else if (result.index === 1) {
+        this.openDiag(item.magnet);
+      }
+    });
+  }
+
   @Builder
   resourceRow(item: GardenResource) {
     Column({ space: 6 }) {
@@ -105,6 +130,10 @@ export struct GardenRadarPage {
     .onClick(() => {
       this.copyMagnet(item.magnet);
     })
+    .gesture(LongPressGesture()
+      .onAction(() => {
+        this.itemAction(item);
+      }))
   }
 
   build() {
@@ -130,11 +159,23 @@ export struct GardenRadarPage {
       .width('100%')
       .padding(12)
 
-      Text(this.searched ? '点击条目复制磁力链接' : '最新资源 · 点击条目复制磁力链接')
-        .fontSize(12)
-        .fontColor('#999999')
-        .width('100%')
-        .padding({ left: 16, bottom: 4 })
+      Row({ space: 8 }) {
+        Text(this.searched ? '点击复制磁力 · 长按更多' : '最新资源 · 点击复制磁力 · 长按更多')
+          .fontSize(12)
+          .fontColor('#999999')
+          .layoutWeight(1)
+        Button('BT 诊断')
+          .fontSize(12)
+          .height(30)
+          .padding({ left: 10, right: 10 })
+          .backgroundColor('#EAF1FB')
+          .fontColor('#3471D5')
+          .onClick(() => {
+            this.openDiag('');
+          })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 12, bottom: 4 })
 
       if (this.error.length > 0 && this.items.length === 0) {
         Column({ space: 10 }) {

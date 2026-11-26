@@ -44,6 +44,11 @@
       "buildFunction": "livePlayBuilder",
       "name": "LivePlay",
       "pageSourceFile": "src/main/ets/pages/live/LivePlayPage.ets"
+    },
+    {
+      "buildFunction": "btDiagPageBuilder",
+      "name": "BtDiag",
+      "pageSourceFile": "src/main/ets/pages/garden/BtDiagPage.ets"
     }
   ]
 }

@@ -65,12 +65,27 @@ export class BNode {
   }
 }
 
+/** decodePrefix 的返回:节点 + 结束偏移(下一字节的下标) */
+export interface BDecodeResult {
+  node: BNode;
+  end: number;
+}
+
 /** bencode 解码:返回节点树;格式非法抛 Error */
 export class Bencode {
   static decode(buf: Uint8Array): BNode {
+    return Bencode.decodePrefix(buf, 0).node;
+  }
+
+  /** 从 pos 解码一个节点,同时返回结束偏移。
+   *  ut_metadata 的 data 消息是「bencode 字典 + 紧跟原始 info 字节」,必须知道字典在哪结束;
+   *  不能用 indexOf('e') 猜(旧调试脚本因此找错过 i14e 的位置)。 */
+  static decodePrefix(buf: Uint8Array, pos: number): BDecodeResult {
     const ctx = new BReader(buf);
+    ctx.seek(pos);
     const node = ctx.read();
-    return node;
+    const res: BDecodeResult = { node: node, end: ctx.posOf() };
+    return res;
   }
 
   /** 编码节点为字节(主要给扩展协议握手用) */
@@ -125,6 +140,14 @@ class BReader {
 
   constructor(buf: Uint8Array) {
     this.buf = buf;
+  }
+
+  seek(p: number): void {
+    this.pos = p;
+  }
+
+  posOf(): number {
+    return this.pos;
   }
 
   read(): BNode {
