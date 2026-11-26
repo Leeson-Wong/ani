@@ -58,6 +58,10 @@ export struct OfflineLibraryPage {
         continue;
       }
       const marks = Prefs.getDownloadedChapters(pw);
+      // 只列出明确缓存过章节的:看过/浏览过只写快照(离线兜底用),不算入库
+      if (marks.length === 0) {
+        continue;
+      }
       const row: OfflineComicRow = {
         pathWord: pw,
         name: snap.detail.name,
@@ -85,6 +89,10 @@ export struct OfflineLibraryPage {
         continue;
       }
       const marks = Prefs.getDownloadedEpisodes(sourceId, vodId);
+      // 只列出明确缓存过剧集的:看过/浏览过只写快照(离线兜底用),不算入库
+      if (marks.length === 0) {
+        continue;
+      }
       let bytes = 0;
       for (const idx of marks) {
         bytes += VideoCache.episodeSize(sourceId, vodId, idx);
@@ -248,7 +256,7 @@ export struct OfflineLibraryPage {
           .width('100%')
         Text(row.cachedCount > 0
           ? `已缓存 ${row.cachedCount} 集 · ${(row.bytes / 1073741824).toFixed(2)}GB`
-          : '快照已存 · 未下载成片')
+          : `全部 ${row.totalCount} 集`)
           .fontSize(12)
           .fontColor(row.cachedCount > 0 ? '#2E8B57' : '#999999')
         Text('点按打开 · 长按删除')
@@ -277,99 +285,96 @@ export struct OfflineLibraryPage {
   build() {
     NavDestination() {
       Column() {
-        List({ space: 10 }) {
-          // 下载队列入口(漫画章节 + 视频任务的进度/暂停/重试都在各自队列页/详情页)
-          ListItem() {
-            Row({ space: 12 }) {
-              Text('⇣')
-                .fontSize(18)
-                .fontColor('#8A5CF6')
-              Column({ space: 2 }) {
-                Text('下载队列')
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Medium)
-                Text(`漫画任务 ${DownloadManager.activeCount()} 个 · 影视任务 ${VideoDownloadManager.activeCount()} 个进行中`)
-                  .fontSize(12)
-                  .fontColor('#999999')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-              Text('›')
-                .fontSize(20)
-                .fontColor('#BBBBBB')
-            }
-            .width('100%')
-            .padding(12)
-            .backgroundColor(Color.White)
-            .borderRadius(10)
-            .onClick(() => {
-              Nav.stack.pushPathByName('Downloads', null);
-            })
-          }
-
-          ListItem() {
-            Text(`已缓存漫画(${this.rows.length})`)
+        // 下载队列入口(常驻在 Tab 之上,漫画/影视都看得到)
+        Row({ space: 12 }) {
+          Text('⇣')
+            .fontSize(18)
+            .fontColor('#8A5CF6')
+          Column({ space: 2 }) {
+            Text('下载队列')
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .width('100%')
-              .padding({ top: 6, bottom: 2, left: 4, right: 4 })
+            Text(`漫画任务 ${DownloadManager.activeCount()} 个 · 影视任务 ${VideoDownloadManager.activeCount()} 个进行中`)
+              .fontSize(12)
+              .fontColor('#999999')
           }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Text('›')
+            .fontSize(20)
+            .fontColor('#BBBBBB')
+        }
+        .width('100%')
+        .padding({ left: 12, right: 12, top: 10, bottom: 4 })
+        .onClick(() => {
+          Nav.stack.pushPathByName('Downloads', null);
+        })
 
-          if (this.loaded && this.rows.length === 0) {
-            ListItem() {
+        // 漫画/影视 Tab 切换,不用滑到底部找另一类
+        Tabs({ barPosition: BarPosition.Start }) {
+          TabContent() {
+            if (this.loaded && this.rows.length === 0) {
               Column({ space: 8 }) {
                 Text('还没有离线漫画')
                   .fontSize(14)
                   .fontColor('#999999')
-                Text('在漫画详情页「选择下载」批量缓存章节')
+                Text('只有明确「选择下载」的漫画才会出现在这里')
                   .fontSize(12)
                   .fontColor('#BBBBBB')
               }
               .width('100%')
-              .padding(30)
-            }
-          } else {
-            ForEach(this.rows, (row: OfflineComicRow) => {
-              ListItem() {
-                this.comicRow(row)
+              .height('100%')
+              .justifyContent(FlexAlign.Center)
+            } else {
+              List({ space: 10 }) {
+                ForEach(this.rows, (row: OfflineComicRow) => {
+                  ListItem() {
+                    this.comicRow(row)
+                  }
+                }, (row: OfflineComicRow) => `${row.pathWord}-${row.cachedCount}-${this.version}`)
               }
-            }, (row: OfflineComicRow) => `${row.pathWord}-${row.cachedCount}-${this.version}`)
-          }
-
-          ListItem() {
-            Text(`已缓存影视(${this.videoRows.length})`)
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
               .width('100%')
-              .padding({ top: 10, bottom: 2, left: 4, right: 4 })
+              .height('100%')
+              .padding({ left: 12, right: 12, top: 8, bottom: 12 })
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring)
+            }
           }
+          .tabBar(`漫画(${this.rows.length})`)
 
-          if (this.loaded && this.videoRows.length === 0) {
-            ListItem() {
+          TabContent() {
+            if (this.loaded && this.videoRows.length === 0) {
               Column({ space: 8 }) {
                 Text('还没有离线影视')
                   .fontSize(14)
                   .fontColor('#999999')
-                Text('在影视详情页「选择下载」批量缓存剧集')
+                Text('只有明确「选择下载」的剧集才会出现在这里')
                   .fontSize(12)
                   .fontColor('#BBBBBB')
               }
               .width('100%')
-              .padding(30)
-            }
-          } else {
-            ForEach(this.videoRows, (row: OfflineVideoRow) => {
-              ListItem() {
-                this.videoRow(row)
+              .height('100%')
+              .justifyContent(FlexAlign.Center)
+            } else {
+              List({ space: 10 }) {
+                ForEach(this.videoRows, (row: OfflineVideoRow) => {
+                  ListItem() {
+                    this.videoRow(row)
+                  }
+                }, (row: OfflineVideoRow) => `${row.key}-${row.cachedCount}-${this.version}`)
               }
-            }, (row: OfflineVideoRow) => `${row.key}-${row.cachedCount}-${this.version}`)
+              .width('100%')
+              .height('100%')
+              .padding({ left: 12, right: 12, top: 8, bottom: 12 })
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring)
+            }
           }
+          .tabBar(`影视(${this.videoRows.length})`)
         }
+        .barMode(BarMode.Fixed)
         .width('100%')
         .layoutWeight(1)
-        .padding(12)
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
       }
       .width('100%')
       .height('100%')

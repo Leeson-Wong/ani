@@ -11,6 +11,23 @@ function sourceLabel(sourceId: string): string {
   return s !== undefined ? s.name : '拷贝漫画';
 }
 
+/** 任务排序权重:进行中最上,其次暂停/失败,已完成垫底 */
+function taskRank(status: string): number {
+  if (status === 'downloading') {
+    return 0;
+  }
+  if (status === 'queued' || status === 'wifi-wait') {
+    return 1;
+  }
+  if (status === 'paused') {
+    return 2;
+  }
+  if (status === 'failed') {
+    return 3;
+  }
+  return 4; // done
+}
+
 /** 全局下载队列:漫画章节任务 + 影视剧集任务(进度/暂停/继续/重试/清理) */
 @ComponentV2
 export struct DownloadsPage {
@@ -38,12 +55,55 @@ export struct DownloadsPage {
 
   mangaRows(): DownloadTaskVM[] {
     this.version; // 建立依赖:任务增删时重建列表
-    return DownloadManager.tasks;
+    const list = DownloadManager.tasks.slice(0);
+    list.sort((a: DownloadTaskVM, b: DownloadTaskVM) => taskRank(a.status) - taskRank(b.status));
+    return list;
   }
 
   videoRows(): VideoTaskVM[] {
     this.version;
-    return VideoDownloadManager.tasks;
+    const list = VideoDownloadManager.tasks.slice(0);
+    list.sort((a: VideoTaskVM, b: VideoTaskVM) => taskRank(a.status) - taskRank(b.status));
+    return list;
+  }
+
+  pausedCount(): number {
+    this.version;
+    return DownloadManager.tasks.filter((t: DownloadTaskVM) => t.status === 'paused').length
+      + VideoDownloadManager.tasks.filter((t: VideoTaskVM) => t.status === 'paused').length;
+  }
+
+  /** 一键停止:漫画与影视所有进行中任务全部暂停(断点/已下内容都保留) */
+  pauseAll(): void {
+    let n = 0;
+    for (const t of DownloadManager.tasks) {
+      if (t.status === 'queued' || t.status === 'downloading') {
+        DownloadManager.pause(t);
+        n++;
+      }
+    }
+    for (const t of VideoDownloadManager.tasks) {
+      if (t.status === 'queued' || t.status === 'downloading' || t.status === 'wifi-wait') {
+        VideoDownloadManager.pause(t);
+        n++;
+      }
+    }
+    promptAction.showToast({ message: n > 0 ? `已暂停 ${n} 个任务` : '没有进行中的任务' });
+  }
+
+  /** 一键继续所有已暂停任务 */
+  resumeAll(): void {
+    for (const t of DownloadManager.tasks) {
+      if (t.status === 'paused') {
+        DownloadManager.resume(t);
+      }
+    }
+    for (const t of VideoDownloadManager.tasks) {
+      if (t.status === 'paused') {
+        VideoDownloadManager.resume(t);
+      }
+    }
+    promptAction.showToast({ message: '已全部继续' });
   }
 
   videoStatusText(t: VideoTaskVM): string {
@@ -81,11 +141,30 @@ export struct DownloadsPage {
         .justifyContent(FlexAlign.Center)
       } else {
         Column() {
-          Row() {
+          // 工具栏:进行中计数 + 全部停止/继续 + 清理
+          Row({ space: 6 }) {
             Text(`进行中:漫画 ${DownloadManager.activeCount()} · 影视 ${VideoDownloadManager.activeCount()}`)
               .fontSize(13)
               .fontColor('#666666')
               .layoutWeight(1)
+            if (this.pausedCount() > 0) {
+              Text('全部继续')
+                .fontSize(13)
+                .fontColor('#3471D5')
+                .padding(6)
+                .onClick(() => {
+                  this.resumeAll();
+                })
+            }
+            if (DownloadManager.activeCount() + VideoDownloadManager.activeCount() > 0) {
+              Text('全部停止')
+                .fontSize(13)
+                .fontColor('#CC8A2B')
+                .padding(6)
+                .onClick(() => {
+                  this.pauseAll();
+                })
+            }
             Text('清除已完成')
               .fontSize(13)
               .fontColor('#CC3333')
@@ -96,61 +175,71 @@ export struct DownloadsPage {
               })
           }
           .width('100%')
-          .padding({ left: 16, right: 16, top: 10 })
+          .padding({ left: 16, right: 10, top: 10, bottom: 2 })
 
-          List({ space: 8 }) {
-            // ===== 漫画章节 =====
-            ListItem() {
-              Text(`漫画章节(${this.mangaRows().length})`)
-                .fontSize(14)
-                .fontWeight(FontWeight.Medium)
-                .width('100%')
-                .padding({ top: 4, bottom: 2, left: 4 })
-            }
-            if (this.mangaRows().length === 0) {
-              ListItem() {
-                Text('暂无漫画任务')
-                  .fontSize(12)
-                  .fontColor('#BBBBBB')
-                  .width('100%')
-                  .padding({ left: 4, top: 2, bottom: 6 })
-              }
-            } else {
-              ForEach(this.mangaRows(), (t: DownloadTaskVM) => {
-                ListItem() {
-                  this.mangaRow(t)
+          // 漫画/影视 Tab 切换,不用来回滑
+          Tabs({ barPosition: BarPosition.Start }) {
+            TabContent() {
+              if (this.mangaRows().length === 0) {
+                Column({ space: 8 }) {
+                  Text('暂无漫画任务')
+                    .fontSize(14)
+                    .fontColor('#999999')
+                  Text('在漫画详情页「选择下载」批量缓存章节')
+                    .fontSize(12)
+                    .fontColor('#BBBBBB')
                 }
-              }, (t: DownloadTaskVM) => t.uuid)
+                .width('100%')
+                .height('100%')
+                .justifyContent(FlexAlign.Center)
+              } else {
+                List({ space: 8 }) {
+                  ForEach(this.mangaRows(), (t: DownloadTaskVM) => {
+                    ListItem() {
+                      this.mangaRow(t)
+                    }
+                  }, (t: DownloadTaskVM) => t.uuid)
+                }
+                .width('100%')
+                .height('100%')
+                .padding(12)
+                .scrollBar(BarState.Off)
+              }
             }
+            .tabBar(`漫画(${this.mangaRows().length})`)
 
-            // ===== 影视剧集 =====
-            ListItem() {
-              Text(`影视剧集(${this.videoRows().length})`)
-                .fontSize(14)
-                .fontWeight(FontWeight.Medium)
-                .width('100%')
-                .padding({ top: 10, bottom: 2, left: 4 })
-            }
-            if (this.videoRows().length === 0) {
-              ListItem() {
-                Text('暂无影视任务')
-                  .fontSize(12)
-                  .fontColor('#BBBBBB')
-                  .width('100%')
-                  .padding({ left: 4, top: 2, bottom: 6 })
-              }
-            } else {
-              ForEach(this.videoRows(), (t: VideoTaskVM) => {
-                ListItem() {
-                  this.videoRow(t)
+            TabContent() {
+              if (this.videoRows().length === 0) {
+                Column({ space: 8 }) {
+                  Text('暂无影视任务')
+                    .fontSize(14)
+                    .fontColor('#999999')
+                  Text('在影视详情页「选择下载」批量缓存剧集')
+                    .fontSize(12)
+                    .fontColor('#BBBBBB')
                 }
-              }, (t: VideoTaskVM) => `${t.sourceId}_${t.vodId}_${t.episodeIndex}`)
+                .width('100%')
+                .height('100%')
+                .justifyContent(FlexAlign.Center)
+              } else {
+                List({ space: 8 }) {
+                  ForEach(this.videoRows(), (t: VideoTaskVM) => {
+                    ListItem() {
+                      this.videoRow(t)
+                    }
+                  }, (t: VideoTaskVM) => `${t.sourceId}_${t.vodId}_${t.episodeIndex}`)
+                }
+                .width('100%')
+                .height('100%')
+                .padding(12)
+                .scrollBar(BarState.Off)
+              }
             }
+            .tabBar(`影视(${this.videoRows().length})`)
           }
+          .barMode(BarMode.Fixed)
           .width('100%')
           .layoutWeight(1)
-          .padding(12)
-          .scrollBar(BarState.Off)
         }
         .width('100%')
         .height('100%')
