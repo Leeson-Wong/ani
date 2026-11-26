@@ -1,0 +1,103 @@
+import { MangaClient } from './MangaClient';
+import { Prefs } from '../../db/Prefs';
+import {
+  MangaBrief, MangaChapter, MangaChapterImages, MangaDetail, MangaHome, MangaTheme
+} from '../../models/manga/MangaModels';
+
+/**
+ * 漫画数据源抽象(多源切换的地基):
+ *  - 模型(MangaBrief/MangaDetail/MangaChapter/MangaChapterImages)全源共用;
+ *  - pathWord 即各源自有 id(copymanga slug / mkzhan 数字串),不同源不冲突,缓存 key 无需加源前缀;
+ *  - themes() 返回各源自己的分类 chips(label 中文,value 传 comicsList 的 theme)。
+ */
+export interface MangaSource {
+  /** 稳定 id(存 Prefs / 后续导航参数) */
+  id: string;
+  /** 展示名(源切换菜单) */
+  name: string;
+  /** 分类筛选 chips */
+  themes(): MangaTheme[];
+  home(): Promise<MangaHome>;
+  comicsList(theme: string, ordering: string, offset: number, limit?: number): Promise<MangaBrief[]>;
+  search(q: string, offset?: number, limit?: number): Promise<MangaBrief[]>;
+  detail(pathWord: string): Promise<MangaDetail>;
+  chapters(pathWord: string, group?: string): Promise<MangaChapter[]>;
+  chapterImages(pathWord: string, chapterUuid: string): Promise<MangaChapterImages>;
+}
+
+/** copymanga(拷贝漫画)实现:薄包装,逐方法委托 MangaClient 静态实现,行为零变化 */
+export class CopymangaSource implements MangaSource {
+  /** 分类筛选:与原 MangaTabPage 内置列表一致(服务端主题列表接口不稳定,固定一份) */
+  static readonly THEMES: MangaTheme[] = [
+    { label: '全部', value: '' },
+    { label: '恋爱', value: 'aiqing' },
+    { label: '冒险', value: 'maoxian' },
+    { label: '搞笑', value: 'gaoxiao' },
+    { label: '奇幻', value: 'qihuan' },
+    { label: '校园', value: 'xiaoyuan' },
+    { label: '科幻', value: 'kehuan' },
+    { label: '悬疑', value: 'xuanyi' },
+    { label: '治愈', value: 'zhiyu' },
+    { label: '热血', value: 'rexue' },
+    { label: '少女', value: 'shaonv' },
+    { label: '少年', value: 'shaonian' },
+    { label: '百合', value: 'baihe' },
+    { label: '耽美', value: 'danmei' },
+    { label: '职场', value: 'zhichang' },
+    { label: '恐怖', value: 'kongbu' }
+  ];
+
+  readonly id: string = 'copymanga';
+  readonly name: string = '拷贝漫画';
+
+  themes(): MangaTheme[] {
+    return CopymangaSource.THEMES;
+  }
+
+  home(): Promise<MangaHome> {
+    return MangaClient.home();
+  }
+
+  comicsList(theme: string, ordering: string, offset: number, limit: number = 24): Promise<MangaBrief[]> {
+    return MangaClient.comicsList(theme, ordering, offset, limit);
+  }
+
+  search(q: string, offset: number = 0, limit: number = 20): Promise<MangaBrief[]> {
+    return MangaClient.search(q, offset, limit);
+  }
+
+  detail(pathWord: string): Promise<MangaDetail> {
+    return MangaClient.detail(pathWord);
+  }
+
+  chapters(pathWord: string, group: string = 'default'): Promise<MangaChapter[]> {
+    return MangaClient.chapters(pathWord, group);
+  }
+
+  chapterImages(pathWord: string, chapterUuid: string): Promise<MangaChapterImages> {
+    return MangaClient.chapterImages(pathWord, chapterUuid);
+  }
+}
+
+/**
+ * 漫画源注册表:页面一律经 MangaSources.current() 取源,不直接 import 具体客户端。
+ * 当前源 id 存 Prefs(mangaSourceId),默认 copymanga;K2 追加 mkzhan 只需在 registry 加一项。
+ */
+export class MangaSources {
+  private static readonly registry: MangaSource[] = [new CopymangaSource()];
+
+  static list(): MangaSource[] {
+    return MangaSources.registry;
+  }
+
+  static byId(id: string): MangaSource | undefined {
+    return MangaSources.registry.find((s: MangaSource) => s.id === id);
+  }
+
+  /** 当前源:Prefs 记录的 id;记录值已不在注册表(如源被移除)时回退第一个 */
+  static current(): MangaSource {
+    const id = Prefs.getMangaSourceId();
+    const hit = MangaSources.byId(id);
+    return hit !== undefined ? hit : MangaSources.registry[0];
+  }
+}

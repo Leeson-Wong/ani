@@ -1,5 +1,5 @@
 import { promptAction } from '@kit.ArkUI';
-import { MangaClient } from '../../datasources/manga/MangaClient';
+import { MangaSources } from '../../datasources/manga/MangaSource';
 import { MangaCache } from '../../datasources/manga/MangaCache';
 import { DownloadManager, DownloadTaskVM } from '../../datasources/manga/DownloadManager';
 import { ComicSnapshot, MangaChapter, MangaDetail } from '../../models/manga/MangaModels';
@@ -67,8 +67,8 @@ export struct MangaDetailPage {
     }
     // ② 网络拉最新;成功则写穿透快照(离线兜底数据始终保持较新)
     try {
-      const d = await MangaClient.detail(this.pathWord);
-      const chs = await MangaClient.chapters(this.pathWord);
+      const d = await MangaSources.current().detail(this.pathWord);
+      const chs = await MangaSources.current().chapters(this.pathWord);
       this.detail = d;
       this.chapters = chs;
       this.offlineMode = false;

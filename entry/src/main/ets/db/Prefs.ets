@@ -259,6 +259,23 @@ export class Prefs {
     Prefs.store.flush();
   }
 
+  /** 当前漫画数据源 id(多源切换;'copymanga' = 拷贝漫画) */
+  static getMangaSourceId(): string {
+    if (Prefs.store === null) {
+      return 'copymanga';
+    }
+    const v = Prefs.store.getSync('mangaSourceId', 'copymanga') as string;
+    return v.length > 0 ? v : 'copymanga';
+  }
+
+  static setMangaSourceId(v: string): void {
+    if (Prefs.store === null) {
+      return;
+    }
+    Prefs.store.putSync('mangaSourceId', v);
+    Prefs.store.flush();
+  }
+
   /** ===== 数据源稳定性 ===== */
 
   /** 漫画 API 最近一次命中的域名(域名池自动回退时记录,下次优先) */

@@ -1,36 +1,11 @@
 import { promptAction } from '@kit.ArkUI';
-import { MangaClient } from '../../datasources/manga/MangaClient';
+import { MangaSource, MangaSources } from '../../datasources/manga/MangaSource';
 import { DatabaseHelper } from '../../db/DatabaseHelper';
 import { Prefs } from '../../db/Prefs';
 import { Nav } from '../../common/Nav';
 import { OfflineBanner } from '../../common/OfflineBanner';
 import { MangaDetailNavParam } from '../../common/NavParams';
-import { MangaBrief } from '../../models/manga/MangaModels';
-
-interface ThemeChip {
-  label: string;
-  value: string;
-}
-
-/** 内置常用主题(服务端主题列表接口不稳定,固定一份) */
-const THEMES: ThemeChip[] = [
-  { label: '全部', value: '' },
-  { label: '恋爱', value: 'aiqing' },
-  { label: '冒险', value: 'maoxian' },
-  { label: '搞笑', value: 'gaoxiao' },
-  { label: '奇幻', value: 'qihuan' },
-  { label: '校园', value: 'xiaoyuan' },
-  { label: '科幻', value: 'kehuan' },
-  { label: '悬疑', value: 'xuanyi' },
-  { label: '治愈', value: 'zhiyu' },
-  { label: '热血', value: 'rexue' },
-  { label: '少女', value: 'shaonv' },
-  { label: '少年', value: 'shaonian' },
-  { label: '百合', value: 'baihe' },
-  { label: '耽美', value: 'danmei' },
-  { label: '职场', value: 'zhichang' },
-  { label: '恐怖', value: 'kongbu' }
-];
+import { MangaBrief, MangaTheme } from '../../models/manga/MangaModels';
 
 const PAGE_SIZE = 24;
 
@@ -60,6 +35,8 @@ export struct MangaTabPage {
   @Local searching: boolean = false;
   @Local searched: boolean = false;
   @Local searchResults: MangaBrief[] = [];
+  @Local sourceId: string = 'copymanga'; // 当前源(菜单勾选与展示)
+  @Local themes: MangaTheme[] = []; // 当前源的分类 chips
   @Local themeIndex: number = 0;
   @Local orderByPopular: boolean = false; // false = 最新
   @Local comics: MangaBrief[] = [];
@@ -71,11 +48,33 @@ export struct MangaTabPage {
 
   async aboutToAppear(): Promise<void> {
     await DatabaseHelper.init(getContext(this));
+    this.sourceId = MangaSources.current().id;
+    this.themes = MangaSources.current().themes();
     this.reload();
   }
 
   get ordering(): string {
     return this.orderByPopular ? '-popular' : '-datetime_updated';
+  }
+
+  get sourceName(): string {
+    const s = MangaSources.byId(this.sourceId);
+    return s !== undefined ? s.name : '';
+  }
+
+  /** 切换漫画源:搜索结果/主题筛选都属于旧源,全部重置后重载 */
+  async switchSource(id: string): Promise<void> {
+    if (id === this.sourceId) {
+      return;
+    }
+    this.sourceId = id;
+    Prefs.setMangaSourceId(id);
+    this.searched = false;
+    this.searchResults = [];
+    this.keyword = '';
+    this.themeIndex = 0;
+    this.themes = MangaSources.current().themes();
+    await this.reload();
   }
 
   async reload(): Promise<void> {
@@ -91,8 +90,8 @@ export struct MangaTabPage {
     this.loading = true;
     this.error = '';
     try {
-      const theme = THEMES[this.themeIndex].value;
-      const fresh = await MangaClient.comicsList(theme, this.ordering, this.listOffset, PAGE_SIZE);
+      const theme = this.themes[this.themeIndex].value;
+      const fresh = await MangaSources.current().comicsList(theme, this.ordering, this.listOffset, PAGE_SIZE);
       this.comics = this.comics.concat(fresh);
       this.listOffset += fresh.length;
     } catch (e) {
@@ -109,7 +108,7 @@ export struct MangaTabPage {
     }
     this.searching = true;
     try {
-      this.searchResults = await MangaClient.search(kw, 0, 30);
+      this.searchResults = await MangaSources.current().search(kw, 0, 30);
       this.searched = true;
       Prefs.pushSearchHistory(kw);
       if (this.searchResults.length === 0) {
@@ -138,6 +137,20 @@ export struct MangaTabPage {
     this.gridW = w;
     const n = Math.floor(w / (CARD_W + 6));
     this.gridCols = Math.max(3, Math.min(8, n));
+  }
+
+  @Builder
+  sourceMenu() {
+    Menu() {
+      ForEach(MangaSources.list(), (s: MangaSource) => {
+        MenuItem({
+          content: this.sourceId === s.id ? `✓ ${s.name}` : s.name
+        })
+          .onClick(() => {
+            this.switchSource(s.id);
+          })
+      }, (s: MangaSource) => s.id)
+    }
   }
 
   @Builder
@@ -253,10 +266,10 @@ export struct MangaTabPage {
         .padding({ left: 12, right: 12, bottom: 12 })
         .scrollBar(BarState.Off)
       } else {
-        // 主题筛选 chips
+        // 主题筛选 chips(随当前源变化)
         Scroll() {
           Row({ space: 8 }) {
-            ForEach(THEMES, (t: ThemeChip, index: number) => {
+            ForEach(this.themes, (t: MangaTheme, index: number) => {
               Text(t.label)
                 .fontSize(13)
                 .fontColor(this.themeIndex === index ? Color.White : '#444444')
@@ -269,7 +282,7 @@ export struct MangaTabPage {
                     this.reload();
                   }
                 })
-            }, (t: ThemeChip) => t.label)
+            }, (t: MangaTheme) => t.label)
           }
           .padding({ left: 12, right: 12 })
         }
@@ -277,15 +290,23 @@ export struct MangaTabPage {
         .scrollBar(BarState.Off)
         .width('100%')
 
-        // 排序切换
+        // 源切换 + 排序
         Row({ space: 8 }) {
+          Text(`源:${this.sourceName} ▾`)
+            .fontSize(13)
+            .fontColor('#E06C00')
+            .backgroundColor('#FDF0E7')
+            .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+            .borderRadius(14)
+            .margin({ left: 12, top: 6 })
+            .bindMenu(this.sourceMenu())
           Text(this.orderByPopular ? '按人气' : '按最新')
             .fontSize(13)
             .fontColor('#8A5CF6')
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .backgroundColor('#F1EAFE')
             .borderRadius(12)
-            .margin({ left: 12, top: 6 })
+            .margin({ top: 6 })
             .onClick(() => {
               this.orderByPopular = !this.orderByPopular;
               this.reload();

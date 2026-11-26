@@ -9,6 +9,12 @@ export interface MangaBrief {
   updatedAt: string;
 }
 
+/** 分类筛选 chip(label 中文,value 传 comicsList 的 theme;各源自备一份) */
+export interface MangaTheme {
+  label: string;
+  value: string;
+}
+
 export interface MangaRankItem extends MangaBrief {
   sort: number;
 }

@@ -278,6 +278,7 @@ export class DownloadManager {
       DownloadManager.notify();
       DownloadManager.persist();
       try {
+        // 有意直调 MangaClient(K1 阶段全部任务都属于 copymanga);K3 加 sourceId 后改为按任务源路由
         const imgs = await MangaClient.chapterImages(t.pathWord, t.uuid);
         MangaCache.saveChapterList(t.uuid, { name: imgs.chapterName, images: imgs.images });
         t.total = imgs.images.length;

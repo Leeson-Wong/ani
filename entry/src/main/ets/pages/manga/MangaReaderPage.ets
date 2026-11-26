@@ -1,4 +1,4 @@
-import { MangaClient } from '../../datasources/manga/MangaClient';
+import { MangaSources } from '../../datasources/manga/MangaSource';
 import { MangaCache } from '../../datasources/manga/MangaCache';
 import { MangaChapter, MangaChapterImages } from '../../models/manga/MangaModels';
 import { Nav } from '../../common/Nav';
@@ -101,7 +101,7 @@ export struct MangaReaderPage {
     if (snap !== null && snap.chapters.length > 0) {
       this.chapters = snap.chapters;
     }
-    MangaClient.chapters(this.pathWord).then((chs: MangaChapter[]) => {
+    MangaSources.current().chapters(this.pathWord).then((chs: MangaChapter[]) => {
       this.chapters = chs;
       // 后台刷新到新列表后,重算当前话序号(目录高亮/上下话按钮依赖它)
       const idx = this.chapters.findIndex((c: MangaChapter) => c.uuid === this.currentUuid);
@@ -160,7 +160,7 @@ export struct MangaReaderPage {
     try {
       let imgs: MangaChapterImages | null = null;
       try {
-        imgs = await MangaClient.chapterImages(this.pathWord, uuid);
+        imgs = await MangaSources.current().chapterImages(this.pathWord, uuid);
         MangaCache.saveChapterList(uuid, { name: imgs.chapterName, images: imgs.images });
       } catch (e) {
         // 网络失败 → 离线兜底(清单有缓存就用,图片有几张算几张)
@@ -256,7 +256,7 @@ export struct MangaReaderPage {
       if (cachedList !== null && cachedList.images.length > 0) {
         urls = cachedList.images;
       } else {
-        const ni = await MangaClient.chapterImages(this.pathWord, next.uuid);
+        const ni = await MangaSources.current().chapterImages(this.pathWord, next.uuid);
         MangaCache.saveChapterList(next.uuid, { name: ni.chapterName, images: ni.images });
         urls = ni.images;
       }
